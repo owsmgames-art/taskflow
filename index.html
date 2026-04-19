@@ -362,11 +362,7 @@ async function loadTasks() {
 }
 
 function subscribeToChanges() {
-  db.channel('tasks-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
-      loadTasks();
-    })
-    .subscribe();
+  setInterval(loadTasks, 3000);
 }
 
 function setSyncStatus(state) {
@@ -454,12 +450,14 @@ function renderWorkers() {
 async function updateStatus(id, status) {
   setSyncStatus('syncing');
   await db.from('tasks').update({ status }).eq('id', id);
+  await loadTasks();
 }
 
 async function deleteTask(id) {
   if (!confirm('Delete this task?')) return;
   setSyncStatus('syncing');
   await db.from('tasks').delete().eq('id', id);
+  await loadTasks();
 }
 
 function openModal() {
@@ -514,6 +512,7 @@ async function submitTask() {
   } else {
     await db.from('tasks').insert([payload]);
   }
+  await loadTasks();
   showToast(editingId ? '✏️ Task updated' : '✅ Task created');
 }
 
