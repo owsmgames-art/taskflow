@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TaskFlow — Business Task Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root {
     --bg: #080C14;
@@ -310,19 +310,13 @@
         </select>
       </div>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Status</label>
-        <select class="form-select" id="fStatus">
-          <option value="pending">Pending</option>
-          <option value="inprogress">In Progress</option>
-          <option value="done">Done</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Due Date</label>
-        <input type="date" id="fDue">
-      </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select class="form-select" id="fStatus">
+        <option value="pending">Pending</option>
+        <option value="inprogress">In Progress</option>
+        <option value="done">Done</option>
+      </select>
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
@@ -332,11 +326,14 @@
 </div>
 
 <script>
-const SUPABASE_URL = 'https://mbqpfvcirvsoempwnsew.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1icXBmdmNpcnZzb2VtcHduc2V3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NjkyNjgsImV4cCI6MjA5MjE0NTI2OH0.MDPdRAQ-LNzMchnRgUOfhNspJL9Xq5swztMOffKcJUU';
+const SUPABASE_URL = 'https://eepumhbkvmbaeopnqiko.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlcHVtaGJrdm1iYWVvcG5xaWtvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NjE1NjIsImV4cCI6MjA5MjEzNzU2Mn0.1QLLY_WJ3T4dQTRi2mcyR1Sxi3G-bPIKglJPt0mfzds';
 
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+console.log('Supabase client created:', db ? 'OK' : 'FAILED');
+console.log('URL:', SUPABASE_URL);
+console.log('Key starts with:', SUPABASE_KEY.substring(0, 20));
 
 let tasks = [];
 let editingId = null;
@@ -365,11 +362,7 @@ async function loadTasks() {
 }
 
 function subscribeToChanges() {
-  db.channel('tasks-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
-      loadTasks();
-    })
-    .subscribe();
+  setInterval(loadTasks, 3000);
 }
 
 function setSyncStatus(state) {
@@ -399,24 +392,21 @@ function renderTasks() {
   }
 
   document.getElementById('taskList').innerHTML = filtered.map(task => {
-    const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'done';
     const statusBadge = { pending: 'badge-pending', inprogress: 'badge-inprogress', done: 'badge-done' }[task.status];
     const statusLabel = { pending: 'Pending', inprogress: 'In Progress', done: 'Done' }[task.status];
     const priorityColor = { high: 'badge-high', medium: 'badge-medium', low: 'badge-low' }[task.priority];
     return `
-      <div class="task-card ${isOverdue ? 'overdue' : ''}">
+      <div class="task-card">
         <div class="task-top">
           <div class="task-main">
             <div class="task-badges">
               <span class="badge ${statusBadge}">${statusLabel}</span>
               <span class="badge ${priorityColor}">● ${task.priority}</span>
-              ${isOverdue ? '<span class="badge badge-overdue">⚠ OVERDUE</span>' : ''}
             </div>
             <div class="task-title ${task.status === 'done' ? 'done' : ''}">${task.title}</div>
             ${task.description ? `<div class="task-desc">${task.description}</div>` : ''}
             <div class="task-meta">
               <span>👤 ${task.worker}</span>
-              ${task.due_date ? `<span style="color:${isOverdue ? 'var(--danger)' : 'var(--muted)'}">📅 ${new Date(task.due_date).toLocaleDateString()}</span>` : ''}
               <span style="font-family:'DM Mono',monospace">${new Date(task.created_at).toLocaleDateString()}</span>
             </div>
           </div>
@@ -460,12 +450,14 @@ function renderWorkers() {
 async function updateStatus(id, status) {
   setSyncStatus('syncing');
   await db.from('tasks').update({ status }).eq('id', id);
+  await loadTasks();
 }
 
 async function deleteTask(id) {
   if (!confirm('Delete this task?')) return;
   setSyncStatus('syncing');
   await db.from('tasks').delete().eq('id', id);
+  await loadTasks();
 }
 
 function openModal() {
@@ -477,7 +469,7 @@ function openModal() {
   document.getElementById('fWorker').value = 'Jiyad';
   document.getElementById('fPriority').value = 'medium';
   document.getElementById('fStatus').value = 'pending';
-  document.getElementById('fDue').value = '';
+  document.getElementById('fDue') && (document.getElementById('fDue').value = '');
   document.getElementById('modalOverlay').style.display = 'flex';
 }
 
@@ -492,7 +484,6 @@ function editTask(id) {
   document.getElementById('fWorker').value = task.worker;
   document.getElementById('fPriority').value = task.priority;
   document.getElementById('fStatus').value = task.status;
-  document.getElementById('fDue').value = task.due_date || '';
   document.getElementById('modalOverlay').style.display = 'flex';
 }
 
@@ -511,7 +502,6 @@ async function submitTask() {
     worker: document.getElementById('fWorker').value,
     priority: document.getElementById('fPriority').value,
     status: document.getElementById('fStatus').value,
-    due_date: document.getElementById('fDue').value || null,
   };
 
   setSyncStatus('syncing');
@@ -522,6 +512,7 @@ async function submitTask() {
   } else {
     await db.from('tasks').insert([payload]);
   }
+  await loadTasks();
   showToast(editingId ? '✏️ Task updated' : '✅ Task created');
 }
 
